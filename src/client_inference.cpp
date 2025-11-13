@@ -1,0 +1,154 @@
+#include <iostream>
+#include "FHEController.h"
+#include <chrono>
+#include <filesystem>
+
+#define GREEN_TEXT "\033[1;32m"
+#define RED_TEXT "\033[1;31m"
+#define RESET_COLOR "\033[0m"
+
+using namespace std::chrono;
+namespace fs = std::filesystem;
+
+FHEController controller;
+
+void setup_environment(int argc, char *argv[]);
+
+vector<Ctxt> encoder1(string input_folder);
+Ctxt encoder2(vector<Ctxt> input);
+Ctxt pooler(Ctxt input);
+Ctxt classifier(Ctxt input);
+
+bool verbose = false;
+bool plain = false;
+// bool demo = false;
+string text;
+string input_path;
+string output_path;
+
+int main(int argc, char *argv[]) {
+    setup_environment(argc, argv);
+
+    // Load context and keys
+    cout << "\n[0/2] Loading context and encrypted weights..." << endl;
+    controller.load_context(verbose);
+    controller.load_bootstrapping_and_rotation_keys("rotation_keys.txt", 16384, verbose);
+
+    system("mkdir checkpoint 2>nul");
+
+    if (verbose) cout << "\nSERVER-SIDE\nThe evaluation of the circuit started." << endl;
+
+    // auto start = high_resolution_clock::now();
+
+    // Ptxt plain_input;
+    // if (demo) plain_input = controller.read_plain_input(input_path);
+    // else plain_input = controller.read_plain_input(input_path);
+    Ptxt plain_input = controller.read_plain_input(input_path);
+    Ctxt encrypted_input = controller.encrypt_ptxt(plain_input);
+
+    cout << "[1/2] Running Pooler..." << endl;
+    Ctxt pooled = pooler(encrypted_input);
+    controller.save(pooled, "checkpoint/pooled.bin");
+
+    cout << "[2/2] Running Classifier..." << endl;
+    Ctxt classified = classifier(pooled);
+
+    if (verbose) cout << "The circuit has been evaluated, the results are sent back to the client" << endl << endl;
+    if (verbose) cout << "CLIENT-SIDE" << endl;
+
+    if (verbose)
+        controller.print(classified, 2, "Output logits");
+
+    // dump clf-encrypted
+    controller.save(classified, output_path);
+
+    // vector<double> plain_result = controller.decrypt_tovector(classified, 2);
+
+    // int timing = (duration_cast<milliseconds>(high_resolution_clock::now() - start)).count() / 1000.0;
+    // if (verbose) cout << endl << "The evaluation of the FHE circuit took: " << timing << " seconds." << endl;
+
+    // cout << "\nOutcome: ";
+    // 0.5 > 0.2 -> -1 NEG
+    // if (plain_result[0] > plain_result[1]) {
+    //     cout << GREEN_TEXT << "NEGATIVE" << RESET_COLOR << " sentiment!" << endl;
+    // } else {
+    //     cout << GREEN_TEXT << "POSITIVE" << RESET_COLOR << " sentiment!" << endl;
+    // }
+
+    // cout << "Logits: [" << plain_result[0] << ", " << plain_result[1] << "]" << endl;
+
+    return 0;
+}
+
+Ctxt classifier(Ctxt input) {
+    // Load encrypted classifier weights
+    Ctxt weight = controller.load_ciphertext("encrypted_weights/classifier_weight.txt.enc");
+    Ctxt bias = controller.load_ciphertext("encrypted_weights/classifier_bias.txt.enc");
+
+    Ctxt output = controller.mult(input, weight);
+    output = controller.rotsum(output, 128, 1);
+    output = controller.add(output, bias);
+
+    vector<double> mask;
+    for (int i = 0; i < controller.num_slots; i++) {
+        mask.push_back(0);
+    }
+    mask[0] = 1;
+    mask[128] = 1;
+
+    output = controller.mult(output, controller.encrypt(mask, output->GetLevel()));
+    output = controller.add(output, controller.rotate(controller.rotate(output, -1), 128));
+
+    return output;
+}
+
+Ctxt pooler(Ctxt input) {
+    auto start = high_resolution_clock::now();
+
+    Ctxt weight_enc = controller.load_ciphertext("encrypted_weights/pooler_dense_weight.txt.enc");
+    Ctxt bias_enc = controller.load_ciphertext("encrypted_weights/pooler_dense_bias.txt.enc");
+
+    Ctxt output = controller.mult(weight_enc, input);
+
+    output = controller.rotsum(output, 128, 128);
+    output = controller.add(output, bias_enc);
+    output = controller.eval_tanh_function(output, -30, 30, 50); // 7 mult. depth
+    output = controller.bootstrap(output);
+
+    if (verbose) cout << "The evaluation of Pooler took: " << (duration_cast<milliseconds>(high_resolution_clock::now() - start)).count() / 1000.0 << " seconds." << endl;
+    if (verbose) controller.print(output, 128, "Pooler (Repeated)");
+
+    return output;
+}
+
+void setup_environment(int argc, char *argv[]) {
+    string command;
+
+    // if (argv[1] == "--demo") {
+    //     demo = true;
+    //     return;
+    // }
+    if (argc < 3) {
+        cout << "Usage: ./client_inference <path_input> <result_output> [OPTIONS]\n\n";
+        cout << "Options:\n";
+        cout << "  --verbose: Print detailed information, need private key\n";
+        cout << "  --plain: Compare with plain circuit\n\n";
+        cout << "  --demo: continue with inference 'It's a good film'\n\n";
+        cout << "Example:\n";
+        cout << "  ./client_inference \"I think this movie is great!\" --verbose\n";
+        // TODO: upd example in usage cout
+        exit(0);
+    } else {
+        input_path = argv[1];
+        output_path = argv[2];
+
+        for (int i = 2; i < argc; i++) {
+            if (string(argv[i]) == "--verbose") {
+                verbose = true;
+            }
+            if (string(argv[i]) == "--plain") {
+                plain = true;
+            }
+        }
+    }
+}
