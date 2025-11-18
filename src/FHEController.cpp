@@ -12,10 +12,12 @@ void FHEController::generate_context(bool serialize, bool secure) {
 
     parameters.SetSecretKeyDist(SPARSE_TERNARY);
     parameters.SetSecurityLevel(lbcrypto::HEStd_128_classic);
-    if (!secure) parameters.SetSecurityLevel(lbcrypto::HEStd_NotSet);
+    // if (!secure)
+    parameters.SetSecurityLevel(lbcrypto::HEStd_NotSet);
     parameters.SetNumLargeDigits(4);
-    parameters.SetRingDim(1 << 16);
-    if (!secure) parameters.SetRingDim(1 << 15);
+    // parameters.SetRingDim(1 << 16);
+    // if (!secure)
+    parameters.SetRingDim(1 << 15);
     parameters.SetBatchSize(num_slots);
 
     level_budget = {14, 14};
@@ -23,7 +25,7 @@ void FHEController::generate_context(bool serialize, bool secure) {
     ScalingTechnique rescaleTech = FLEXIBLEAUTO;
 
     // int dcrtBits               = 40;
-    int dcrtBits               = 55;
+    int dcrtBits               = 58;
     // int firstMod               = 45;
     int firstMod               = 58;
 
@@ -31,9 +33,9 @@ void FHEController::generate_context(bool serialize, bool secure) {
     parameters.SetScalingTechnique(rescaleTech);
     parameters.SetFirstModSize(firstMod);
 
-    uint32_t approxBootstrapDepth = 3;
+    uint32_t approxBootstrapDepth = 2;
 
-    uint32_t levelsUsedBeforeBootstrap = 30;
+    uint32_t levelsUsedBeforeBootstrap = 20;
 
     circuit_depth = levelsUsedBeforeBootstrap + FHECKKSRNS::GetBootstrapDepth(approxBootstrapDepth, level_budget, SPARSE_TERNARY);
 
@@ -122,9 +124,9 @@ void FHEController::generate_context(int log_ring, int log_scale, int log_primes
     parameters.SetScalingTechnique(FLEXIBLEAUTO);
     parameters.SetFirstModSize(firstMod);
 
-    uint32_t approxBootstrapDepth = 3; //During EvalRaise, Chebyshev, DoubleAngle
+    uint32_t approxBootstrapDepth = 2; //During EvalRaise, Chebyshev, DoubleAngle
 
-    uint32_t levelsUsedBeforeBootstrap = 30;
+    uint32_t levelsUsedBeforeBootstrap = 20;
 
     circuit_depth = levelsUsedBeforeBootstrap +
                     FHECKKSRNS::GetBootstrapDepth(approxBootstrapDepth, level_budget, SPARSE_TERNARY);
@@ -234,9 +236,9 @@ void FHEController::load_context(bool verbose) {
 
     if (verbose) cout << "CtoS: " << level_budget[0] << ", StoC: " << level_budget[1] << endl;
 
-    uint32_t approxBootstrapDepth = 3;
+    uint32_t approxBootstrapDepth = 2;
 
-    uint32_t levelsUsedBeforeBootstrap = 30;
+    uint32_t levelsUsedBeforeBootstrap = 20;
 
     circuit_depth = levelsUsedBeforeBootstrap + FHECKKSRNS::GetBootstrapDepth(approxBootstrapDepth, level_budget, SPARSE_TERNARY);
 
@@ -247,7 +249,7 @@ void FHEController::load_context(bool verbose) {
 
 
 void FHEController::generate_bootstrapping_keys(int bootstrap_slots) {
-    context->EvalBootstrapSetup(level_budget, {3, 3}, bootstrap_slots);
+    context->EvalBootstrapSetup(level_budget, {0, 0}, bootstrap_slots);
     context->EvalBootstrapKeyGen(key_pair.secretKey, bootstrap_slots);
 }
 
@@ -289,7 +291,7 @@ void FHEController::load_bootstrapping_and_rotation_keys(const string& filename,
 
     auto start = start_time();
 
-    context->EvalBootstrapSetup(level_budget, {3, 3}, bootstrap_slots);
+    context->EvalBootstrapSetup(level_budget, {0, 0}, bootstrap_slots);
 
     if (verbose)  cout << "(1/2) Bootstrapping precomputations completed!" << endl;
 
@@ -1306,8 +1308,8 @@ Ctxt FHEController::eval_gelu_function(const Ctxt &c, double min, double max, do
     return context->EvalChebyshevFunction([mult](double x) -> double { return  (0.5 * (x * (1 / mult)) * (1 + erf((x * (1 / mult)) / 1.41421356237))); }, c, min, max, degree);
 }
 
-Ctxt FHEController::eval_tanh_function(const Ctxt &c, double min, double max, int degree) {
-    return context->EvalChebyshevFunction([](double x) -> double { return tanh(x); }, c, min, max, degree);
+Ctxt FHEController::eval_tanh_function(const Ctxt &c, double min, double max, double mult, int degree) {
+    return context->EvalChebyshevFunction([mult](double x) -> double { return tanh(x * (1 / mult)); }, c, min, max, degree);
 }
 
 vector<Ctxt> FHEController::slicing(vector<Ctxt> &arr, int X, int Y) {
@@ -1523,6 +1525,31 @@ Ctxt FHEController::accuracy(const Ctxt &x_neg, const Ctxt &x_pos, const Ptxt &p
     return match;
 }
 
+Ctxt FHEController::rotate_composed(const Ctxt& ctxt, int rot) {
+    Ctxt result = ctxt;
+
+    int r = rot;
+
+    // Нормализуем в положительную сторону
+    // CKKS ротации работают по модулю slotCount и OpenFHE сам применяет Galois-idx
+    // Но для нашей композиции нужно просто разложить число в двоичную форму.
+    int dir = (r < 0 ? -1 : 1);
+    r = abs(r);
+
+    // По битам r делаем ротацию
+    int shift = 1;
+    while (r > 0) {
+        if (r & 1) {
+            // Выполнить rotate на shift * dir
+            result = context->EvalRotate(result, shift * dir);
+        }
+        r >>= 1;
+        shift <<= 1;
+    }
+
+    return result;
+}
+
 // before
 // ctxts[0]: [x0, 0, 0, 0]
 // ctxts[1]: [x1, 0, 0, 0]
@@ -1533,7 +1560,7 @@ Ctxt FHEController::accuracy(const Ctxt &x_neg, const Ctxt &x_pos, const Ptxt &p
 Ctxt FHEController::unwrap_vector_ctxts(const vector<Ctxt> &ctxts, size_t slot_count) {
     Ctxt res = ctxts[0];
     for (size_t i = 1; i < slot_count; i++) {
-        res = context->EvalAdd(res, rotate(ctxts[i], -i));
+        res = context->EvalAdd(res, rotate_composed(ctxts[i], -i));
     }
     return res;
 }
@@ -1585,7 +1612,7 @@ vector<Ctxt> FHEController::split_2_slots(const Ctxt& input)
     // Для второго слота можно либо делать ротацию, чтобы он оказался на позиции 0,
     // либо просто умножать на маску (если позиция не критична)
     Ctxt second = context->EvalRotate(input, -1);  // поворачиваем слот 1 на позицию 2
-    second = context->EvalRotate(second, 2);  // поворачиваем слот 1 на позицию 0
+    second = context->EvalRotate(second, 2);  // поворачиваем слот 2 на позицию 0
     second = context->EvalMult(second, pt_mask1); // reuse маску на позицию 0
     context->RescaleInPlace(second);
     context->RelinearizeInPlace(second);

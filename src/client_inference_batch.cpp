@@ -46,8 +46,8 @@ int main(int argc, char *argv[]) {
         string input_file = input_folder + "/" + input_folder + "_" + to_string(i) + ".txt";
         cout << "[" << i + 1 << "/" << folder_size << "] [0/2] Loading input from " << input_file << "..." << endl;
 
-        // Ptxt plain_input = controller.read_plain_expanded_input(input_file);
-        Ptxt plain_input = controller.read_plain_input(input_file);
+        Ptxt plain_input = controller.read_plain_repeated_input(input_file);
+        // vector<double> vector_input = read_values_from_file(input_file);
         Ctxt encrypted_input = controller.encrypt_ptxt(plain_input);
 
         cout << "[" << i + 1 << "/" << folder_size << "] [1/2] Running Pooler..." << endl;
@@ -87,22 +87,22 @@ Ctxt classifier(Ctxt input) {
 
     output = controller.mult(output, controller.encrypt(mask, output->GetLevel()));
     output = controller.add(output, controller.rotate(controller.rotate(output, -1), 128));
-    // output = controller.bootstrap(output);
 
     return output;
 }
 
 Ctxt pooler(Ctxt input) {
     auto start = high_resolution_clock::now();
+    double tanhScale = 1 / 30.0;
 
     Ctxt weight_enc = controller.load_ciphertext("encrypted_weights/pooler_dense_weight.txt.enc");
     Ctxt bias_enc = controller.load_ciphertext("encrypted_weights/pooler_dense_bias.txt.enc");
 
-    Ctxt output = controller.mult(weight_enc, input);
+    Ctxt output = controller.mult(input, weight_enc);
 
     output = controller.rotsum(output, 128, 128);
     output = controller.add(output, bias_enc);
-    output = controller.eval_tanh_function(output, -30, 30, 2000); // 12 mult. depth
+    output = controller.eval_tanh_function(output, -1, 1, tanhScale, 200); // 7 mult. depth
     output = controller.bootstrap(output);
 
     if (verbose) cout << "The evaluation of Pooler took: " << (duration_cast<milliseconds>(high_resolution_clock::now() - start)).count() / 1000.0 << " seconds." << endl;

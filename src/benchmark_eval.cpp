@@ -1,6 +1,10 @@
 #include <iostream>
 #include "FHEController.h"
+#include <regex>
 #include <filesystem>
+#include <algorithm>
+#include <vector>
+#include <string>
 #include "Utils.h"
 
 namespace fs = std::filesystem;
@@ -16,20 +20,41 @@ string labels_file;
 bool verbose = false;
 bool plain = false;
 
-std::vector<std::string> getFilesInDirectory(const std::string& path) {
-    std::vector<std::string> file_list;
-    try {
-        for (const auto& entry : fs::directory_iterator(path)) {
-            if (entry.is_regular_file()) {
-                file_list.push_back(entry.path().string());
-            }
-        }
-    } catch (const fs::filesystem_error& e) {
-        std::cerr << "Ошибка файловой системы: " << e.what() << std::endl;
-    }
-    return file_list;
-}
 
+
+// Processing results/res_0.txt.enc
+// Processing results/res_1.txt.enc
+// Processing results/res_2.txt.enc
+// ...
+// Processing results/res_10.txt.enc
+// Processing results/res_11.txt.enc
+// ...
+// Not in lecsicographic format as here: 0, 1, 10, 100 ..
+std::vector<std::string> getFilesSortedByNumber(const std::string& input_path) {
+    std::vector<std::string> files;
+
+    for (auto& p : std::filesystem::directory_iterator(input_path)) {
+        if (p.is_regular_file()) {
+            files.push_back(p.path().string());
+        }
+    }
+
+    // регулярка вытаскивает число перед ".txt.enc"
+    std::regex re(R"(.*?(\d+)\.txt\.enc$)");
+
+    std::sort(files.begin(), files.end(),
+        [&](const std::string& a, const std::string& b) {
+            std::smatch ma, mb;
+            int na = 0, nb = 0;
+
+            if (std::regex_match(a, ma, re)) na = std::stoi(ma[1]);
+            if (std::regex_match(b, mb, re)) nb = std::stoi(mb[1]);
+
+            return na < nb;
+        });
+
+    return files;
+}
 int main(int argc, char *argv[]) {
     setup_environment(argc, argv);
 
@@ -39,16 +64,16 @@ int main(int argc, char *argv[]) {
 
     vector<double> labels = read_values_from_file(labels_file);
 
-    double min = -2.0;
-    double max = 2.0;
-    int degree = 2000;
+    double min = -200.0;
+    double max = 200.0;
+    int degree = 200;
 
     // curr. batch = 1
     // SoonTM batch config
     vector<Ctxt> batch_acc;
 
     cout << "\n[1/2] Load clfs logits and evaluate" << endl;
-    std::vector<std::string> clf_encs_paths = getFilesInDirectory(input_path);
+    std::vector<std::string> clf_encs_paths = getFilesSortedByNumber(input_path);
     int n = clf_encs_paths.size();
 
     vector<Ctxt> vec_c_neg;
@@ -64,9 +89,15 @@ int main(int argc, char *argv[]) {
         vec_c_pos.push_back(logits[1]);
     }
 
+    if (verbose) cout << "Unwrapping" << endl;
     Ctxt c_neg = controller.unwrap_vector_ctxts(vec_c_neg, n);
     Ctxt c_pos = controller.unwrap_vector_ctxts(vec_c_pos, n);
+    // out from zero — better sgn func approx (check notebook sign_approx.ipynb)
+    // logit 0.001 -> 0.1, etc.
+    c_neg = controller.mult(c_neg, 100);
+    c_pos = controller.mult(c_pos, 100);
 
+    if (verbose) cout << "Accuracy measure" << endl;
     Ctxt acc_enc = controller.accuracy(c_neg, c_pos, labels, min, max, degree);
 
     double approx_acc = 0.0;
@@ -75,6 +106,7 @@ int main(int argc, char *argv[]) {
         // нужно использовать rot_sum с операцией div на 0 слот
         vector<double> dec = controller.decrypt_tovector(acc_enc, n);
         for (size_t i = 0; i < n; i++) {
+            cout << dec[i] << " ";
             approx_acc += dec[i];  // суммируем только первые n слотов
         }
         approx_acc /= n;

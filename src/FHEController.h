@@ -108,7 +108,7 @@ public:
     Ctxt eval_inverse_naive(const Ctxt &c, double min, double max);
     Ctxt eval_inverse_naive_2(const Ctxt &c, double min, double max, double mult);
     Ctxt eval_gelu_function(const Ctxt &c, double min, double max, double mult, int degree);
-    Ctxt eval_tanh_function(const Ctxt &c, double min, double max, int degree);
+    Ctxt eval_tanh_function(const Ctxt &c, double min, double max, double mult, int degree);
 
     // Utility operations
     Ctxt rotsum(const Ctxt &in, int slots, int padding);
@@ -150,18 +150,20 @@ public:
     Ctxt accuracy(const Ctxt &x_neg, const Ctxt &x_pos, const Ptxt &p_labels,
         double min = -1, double max = 1, int d = 25);
 
+    Ctxt rotate_composed(const Ctxt& ctxt, int rot);
     Ctxt unwrap_vector_ctxts(const vector<Ctxt> &ctxts, size_t slot_count);
 
     vector<Ctxt> slicing(vector<Ctxt> &arr, int X, int Y);
     // vector<Ctxt> split_slots_by_rotation(const Ctxt& input, size_t slot_count);
     vector<Ctxt> split_2_slots(const Ctxt& input);
 
+
     int relu_degree = 119;
     string parameters_folder = "keys";
 
 private:
     KeyPair<DCRTPoly> key_pair;
-    vector<uint32_t> level_budget = {4, 4};
+    vector<uint32_t> level_budget = {10, 10};
 };
 
 #endif

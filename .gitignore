@@ -1,0 +1,66 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+
+
+/build
+/keys
+/.idea
+/checkpoint
+checkpoint/
+.idea/
+
+src/tmp_embeddings/
+notebooks/.ipynb_checkpoints/
+
+.venv
+.local
+.vscode
+
+encrypted_weights/*
+hs/*
+results/*
+
+
+!.gitkeep
+*.enc
+
+labels.txt

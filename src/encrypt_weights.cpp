@@ -120,12 +120,14 @@ vector<WeightSpec> get_all_ptxt_specs() {
         // {"../weights-sst2/layer1_output_normbias.txt", "read_plain_expanded_input", {"8", "1"}},
 
         // ───── Pooler ─────
-        {"weights-sst2/pooler_dense_weight.txt", "read_plain_input", {"25", "1/30.0"}},
-        {"weights-sst2/pooler_dense_bias.txt", "read_plain_repeated_input", {"25", "1/30.0"}},
+        {"weights-sst2/pooler_dense_weight.txt", "read_plain_input", {"13", "1/30.0"}},
+        {"weights-sst2/pooler_dense_bias.txt", "read_plain_repeated_input", {"12", "1/30.0"}},
+        // {"weights-sst2/pooler_dense_weight.txt", "read_plain_input", {"12"}},
+        // {"weights-sst2/pooler_dense_bias.txt", "read_plain_repeated_input", {"12"}},
 
         // ───── Classifier ─────
-        {"weights-sst2/classifier_weight.txt", "read_plain_input", {"25"}},
-        {"weights-sst2/classifier_bias.txt", "read_plain_expanded_input", {"25"}}
+        {"weights-sst2/classifier_weight.txt", "read_plain_input", {"13"}},
+        {"weights-sst2/classifier_bias.txt", "read_plain_expanded_input", {"12"}}
     };
 }
 
@@ -141,7 +143,7 @@ int main() {
     cout << "[2/4] Generating rotation keys..." << endl;
     vector<int> rotations = {
         1, 2, 3, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192,
-        -1, -2, -3, -4, -8, -16, -32, -64
+        -1, -2, -3, -4, -8, -16, -32, -64, -256, -512
     };
     controller.generate_bootstrapping_and_rotation_keys(rotations, 16384, true, "rotation_keys.txt");
 
