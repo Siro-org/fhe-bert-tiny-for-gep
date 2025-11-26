@@ -163,7 +163,7 @@ public:
 
 private:
     KeyPair<DCRTPoly> key_pair;
-    vector<uint32_t> level_budget = {10, 10};
+    vector<uint32_t> level_budget = {14, 14};
 };
 
 #endif

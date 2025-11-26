@@ -1,6 +1,7 @@
 from fileinput import filename
 import requests
 import torch
+from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from datasets import load_dataset
 import subprocess
@@ -23,8 +24,8 @@ DATASET_SIZE = 100 # TODO:
 # TOTAL_SIZE TODO: refactoring
 # BATCH_SIZE = 32
 # BIAS_INDEX = 0
-BATCH_SIZE = 96
-BIAS_INDEX = 32
+BIAS_INDEX = 0
+BATCH_SIZE = BIAS_INDEX + 32
 
 # --- Сетевой Конфиг ---
 GEP_DOMAIN_NAME = "siroproject.tech"
@@ -150,11 +151,49 @@ def send_result():
     with open(BENCH_RESULT_NAME, "rb") as f:
         requests.post(GEP_API, data=payload, files={"ciphertext": f})
 
+def evaluate_accuracy_with_slice(
+        batch_size=128,
+        bias=BIAS_INDEX,
+):
+    # 1. Загрузка модели и токенизатора
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
+    model.eval()
 
-# for i in range(0, len(texts), BATCH_SIZE):
-#     batch_texts = texts[i:i+BATCH_SIZE]
-#     inference_batch(batch_texts)
+    start = bias
+    end = bias + batch_size
+    sliced = dataset.select(range(start, min(end, len(dataset))))
+
+    # 4. Подсчёт accuracy
+    correct = 0
+    total = 0
+
+    for item in sliced:
+        inputs = tokenizer(
+            item["sentence"],
+            return_tensors="pt",
+            truncation=True,
+            padding="max_length",
+            max_length=64,
+        )
+
+        with torch.no_grad():
+            logits = model(**inputs).logits
+            pred = torch.argmax(logits, dim=1).item()
+
+        label = item["label"]
+        correct += int(pred == label)
+        total += 1
+
+    return correct / total if total > 0 else 0.0
+
+for i in range(0, len(texts), BATCH_SIZE):
+    batch_texts = texts[i:i+BATCH_SIZE]
+    inference_batch(batch_texts)
 
 benchmark_batch()
+
+acc = evaluate_accuracy_with_slice(batch_size=BATCH_SIZE, bias=BIAS_INDEX)
+print("Accuracy:", acc)
 
 # send_result()

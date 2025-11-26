@@ -1,5 +1,7 @@
 FROM ubuntu:24.04
 
+# WARN: STILL UNTESTED
+
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install dependencies
@@ -23,7 +25,6 @@ COPY uv.lock ./
 
 RUN pip install uv
 
-# Установить зависимости из pyproject.toml
 RUN uv pip install --system --no-cache .
 
 # TODO: setting a copy in docker: binary, src, weights-sst2
@@ -40,7 +41,7 @@ RUN mkdir -p /opt && cd /opt && \
     ldconfig
 
 # Set environment variables
-ENV LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+# ENV LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 ENV OpenFHE_DIR=/usr/local/lib/cmake/OpenFHE
 
 # Create working directory

@@ -2,12 +2,13 @@
 import requests
 
 
-GEP_DOMAIN_NAME = "0.0.0.0"
-GEP_DOMAIN_PORT = "8000"
-GEP_API = f"http://{GEP_DOMAIN_NAME}:{GEP_DOMAIN_PORT}/api/publish"
+# GEP_DOMAIN_NAME = "0.0.0.0"
+# GEP_DOMAIN_PORT = "8000"
+# GEP_API = f"http://{GEP_DOMAIN_NAME}:{GEP_DOMAIN_PORT}/api/publish"
+GEP_API = f"http://siroproject.tech:8000/api/publish"
 
-BATCH_SIZE = 32
-BENCH_RESULT_NAME = "to_test/benchmark_result_32_batch.enc"
+BATCH_SIZE = 128
+BENCH_RESULT_NAME = f"to_test/benchmark_result_{BATCH_SIZE}_batch.enc"
 
 def send_result():
     print(f"[INFO] Sending Anon result to {GEP_API}")

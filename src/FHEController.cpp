@@ -20,22 +20,22 @@ void FHEController::generate_context(bool serialize, bool secure) {
     parameters.SetRingDim(1 << 15);
     parameters.SetBatchSize(num_slots);
 
-    level_budget = {14, 14};
+    level_budget = {4, 4};
 
     ScalingTechnique rescaleTech = FLEXIBLEAUTO;
 
     // int dcrtBits               = 40;
-    int dcrtBits               = 58;
+    int dcrtBits               = 56;
     // int firstMod               = 45;
-    int firstMod               = 58;
+    int firstMod               = 56;
 
     parameters.SetScalingModSize(dcrtBits);
     parameters.SetScalingTechnique(rescaleTech);
     parameters.SetFirstModSize(firstMod);
 
-    uint32_t approxBootstrapDepth = 2;
+    uint32_t approxBootstrapDepth = 3;
 
-    uint32_t levelsUsedBeforeBootstrap = 20;
+    uint32_t levelsUsedBeforeBootstrap = 12;
 
     circuit_depth = levelsUsedBeforeBootstrap + FHECKKSRNS::GetBootstrapDepth(approxBootstrapDepth, level_budget, SPARSE_TERNARY);
 
@@ -124,9 +124,9 @@ void FHEController::generate_context(int log_ring, int log_scale, int log_primes
     parameters.SetScalingTechnique(FLEXIBLEAUTO);
     parameters.SetFirstModSize(firstMod);
 
-    uint32_t approxBootstrapDepth = 2; //During EvalRaise, Chebyshev, DoubleAngle
+    uint32_t approxBootstrapDepth = 3;
 
-    uint32_t levelsUsedBeforeBootstrap = 20;
+    uint32_t levelsUsedBeforeBootstrap = 12;
 
     circuit_depth = levelsUsedBeforeBootstrap +
                     FHECKKSRNS::GetBootstrapDepth(approxBootstrapDepth, level_budget, SPARSE_TERNARY);
@@ -232,13 +232,13 @@ void FHEController::load_context(bool verbose) {
         exit(1);
     }
 
-    level_budget = {14, 14};
+    level_budget = {4, 4};
 
     if (verbose) cout << "CtoS: " << level_budget[0] << ", StoC: " << level_budget[1] << endl;
 
-    uint32_t approxBootstrapDepth = 2;
+    uint32_t approxBootstrapDepth = 3;
 
-    uint32_t levelsUsedBeforeBootstrap = 20;
+    uint32_t levelsUsedBeforeBootstrap = 12;
 
     circuit_depth = levelsUsedBeforeBootstrap + FHECKKSRNS::GetBootstrapDepth(approxBootstrapDepth, level_budget, SPARSE_TERNARY);
 
@@ -291,6 +291,7 @@ void FHEController::load_bootstrapping_and_rotation_keys(const string& filename,
 
     auto start = start_time();
 
+    // TODO: fix bad magic assign: level_budget
     context->EvalBootstrapSetup(level_budget, {0, 0}, bootstrap_slots);
 
     if (verbose)  cout << "(1/2) Bootstrapping precomputations completed!" << endl;
@@ -1471,48 +1472,66 @@ Ctxt FHEController::sign_difference(const Ctxt &x, const Ctxt &y,
 // depth:
 // chebyshev_degree(200) ~= 9
 //
+// Ctxt FHEController::accuracy(const Ctxt &x_neg, const Ctxt &x_pos, const vector<double> &y,
+//                              double min, double max, int d) {
+//     size_t n = y.size();  // количество примеров
+
+//     Ctxt diff = context->EvalSub(x_neg, x_pos);
+
+//     // === 2. pred_class(neg_is_more) ===
+//     Ctxt pred_label = eval_sign_function(diff, min, max, d);
+//     pred_label = bootstrap(pred_label);
+
+
+//     // === 3. Шифруем метки y ===
+//     Ptxt p_labels = encode(y, pred_label->GetLevel(), n);
+//     // Ctxt y_enc = encrypt_ptxt(y);
+
+//     // === 4. match = (pred_label * true_label + 1) / 2 ===
+//     Ctxt match = context->EvalMult(pred_label, p_labels); // pred_label * true_label
+//     match = context->EvalAdd(match, 1.0);             // +1
+//     match = context->EvalMult(match, 0.5);            // *0.5
+//     //  print(match, n, "Match");
+
+//     // WARN: сейчас суммирование имеет слишком большие потери в точности (~0,01 err), не помогает даже бутстрап
+//     // TODO: переписать и проверить с rotsum
+//     // === 5. Суммирование совпадений ===
+//     // cout << "5. Суммирование совпадений" << endl;
+//     // Ctxt sum_matches = context->EvalSum(match, n);    // суммируем все слоты
+//     // print(sum_matches, n, "EvalSumRes");
+
+//     // // === 6. Деление на n ===
+//     // cout << "6. Деление на n" << endl;
+//     // double inv_n = 1.0 / static_cast<double>(n);
+//     // Ctxt acc = context->EvalMult(sum_matches, inv_n);
+//     // acc = bootstrap(acc);
+//     // print(acc, n, "Acc");
+
+//     // return acc;
+//     return match;
+// }
+
 Ctxt FHEController::accuracy(const Ctxt &x_neg, const Ctxt &x_pos, const vector<double> &y,
                              double min, double max, int d) {
-    size_t n = y.size();  // количество примеров
-
     Ctxt diff = context->EvalSub(x_neg, x_pos);
+    diff = bootstrap(diff);
 
-    // === 2. pred_class(neg_is_more) ===
     Ctxt pred_label = eval_sign_function(diff, min, max, d);
     pred_label = bootstrap(pred_label);
 
-
-    // === 3. Шифруем метки y ===
-    Ptxt p_labels = encode(y, pred_label->GetLevel(), n);
-    // Ctxt y_enc = encrypt_ptxt(y);
-
-    // === 4. match = (pred_label * true_label + 1) / 2 ===
+    Ptxt p_labels = encode(y, pred_label->GetLevel(), y.size());
+    // match = (pred_label * true_label + 1) * 1/2
     Ctxt match = context->EvalMult(pred_label, p_labels); // pred_label * true_label
     match = context->EvalAdd(match, 1.0);             // +1
     match = context->EvalMult(match, 0.5);            // *0.5
-    //  print(match, n, "Match");
 
-    // WARN: сейчас суммирование имеет слишком большие потери в точности (~0,01 err), не помогает даже бутстрап
-    // TODO: переписать и проверить с rotsum
-    // === 5. Суммирование совпадений ===
-    // cout << "5. Суммирование совпадений" << endl;
-    // Ctxt sum_matches = context->EvalSum(match, n);    // суммируем все слоты
-    // print(sum_matches, n, "EvalSumRes");
-
-    // // === 6. Деление на n ===
-    // cout << "6. Деление на n" << endl;
-    // double inv_n = 1.0 / static_cast<double>(n);
-    // Ctxt acc = context->EvalMult(sum_matches, inv_n);
-    // acc = bootstrap(acc);
-    // print(acc, n, "Acc");
-
-    // return acc;
     return match;
 }
 
 Ctxt FHEController::accuracy(const Ctxt &x_neg, const Ctxt &x_pos, const Ptxt &p_labels,
                              double min, double max, int d) {
     Ctxt diff = context->EvalSub(x_neg, x_pos);
+    diff = bootstrap(diff);
 
     Ctxt pred_label = eval_sign_function(diff, min, max, d);
     pred_label = bootstrap(pred_label);
@@ -1600,22 +1619,17 @@ vector<Ctxt> FHEController::split_2_slots(const Ctxt& input)
 
     // Если первый слот уже на позиции 0, ротация не нужна
     Ctxt first = context->EvalMult(input, pt_mask1);
-    context->RescaleInPlace(first);
-    context->RelinearizeInPlace(first);
+    // context->RescaleInPlace(first);
+    // context->RelinearizeInPlace(first);
     out.push_back(first);
-
-    // --- Маска для второго слота ---
-    vector<double> mask2(2, 0.0);
-    mask2[1] = 1.0;  // оставляем слот 1
-    Ptxt pt_mask2 = context->MakeCKKSPackedPlaintext(mask2);
 
     // Для второго слота можно либо делать ротацию, чтобы он оказался на позиции 0,
     // либо просто умножать на маску (если позиция не критична)
     Ctxt second = context->EvalRotate(input, -1);  // поворачиваем слот 1 на позицию 2
     second = context->EvalRotate(second, 2);  // поворачиваем слот 2 на позицию 0
     second = context->EvalMult(second, pt_mask1); // reuse маску на позицию 0
-    context->RescaleInPlace(second);
-    context->RelinearizeInPlace(second);
+    // context->RescaleInPlace(second);
+    // context->RelinearizeInPlace(second);
     out.push_back(second);
 
     return out;

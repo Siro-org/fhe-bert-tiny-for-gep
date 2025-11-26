@@ -95,6 +95,7 @@ Ctxt pooler(Ctxt input) {
     auto start = high_resolution_clock::now();
     double tanhScale = 1 / 30.0;
 
+
     Ctxt weight_enc = controller.load_ciphertext("encrypted_weights/pooler_dense_weight.txt.enc");
     Ctxt bias_enc = controller.load_ciphertext("encrypted_weights/pooler_dense_bias.txt.enc");
 
@@ -102,7 +103,7 @@ Ctxt pooler(Ctxt input) {
 
     output = controller.rotsum(output, 128, 128);
     output = controller.add(output, bias_enc);
-    output = controller.eval_tanh_function(output, -1, 1, tanhScale, 200); // 7 mult. depth
+    output = controller.eval_tanh_function(output, -1, 1, tanhScale, 200); // 9 depth
     output = controller.bootstrap(output);
 
     if (verbose) cout << "The evaluation of Pooler took: " << (duration_cast<milliseconds>(high_resolution_clock::now() - start)).count() / 1000.0 << " seconds." << endl;

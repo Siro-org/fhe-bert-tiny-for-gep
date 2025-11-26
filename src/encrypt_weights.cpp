@@ -120,33 +120,45 @@ vector<WeightSpec> get_all_ptxt_specs() {
         // {"../weights-sst2/layer1_output_normbias.txt", "read_plain_expanded_input", {"8", "1"}},
 
         // ───── Pooler ─────
-        {"weights-sst2/pooler_dense_weight.txt", "read_plain_input", {"13", "1/30.0"}},
-        {"weights-sst2/pooler_dense_bias.txt", "read_plain_repeated_input", {"12", "1/30.0"}},
-        // {"weights-sst2/pooler_dense_weight.txt", "read_plain_input", {"12"}},
-        // {"weights-sst2/pooler_dense_bias.txt", "read_plain_repeated_input", {"12"}},
+        // {"weights-sst2/pooler_dense_weight.txt", "read_plain_input", {"0", "1/25.0"}},
+        // {"weights-sst2/pooler_dense_bias.txt", "read_plain_repeated_input", {"0", "1/25.0"}},
+        {"weights-sst2/pooler_dense_weight.txt", "read_plain_input", {"0", "1/30.0"}},
+        {"weights-sst2/pooler_dense_bias.txt", "read_plain_repeated_input", {"1", "1/30.0"}},
 
         // ───── Classifier ─────
-        {"weights-sst2/classifier_weight.txt", "read_plain_input", {"13"}},
-        {"weights-sst2/classifier_bias.txt", "read_plain_expanded_input", {"12"}}
+        {"weights-sst2/classifier_weight.txt", "read_plain_input", {"10"}},
+        {"weights-sst2/classifier_bias.txt", "read_plain_expanded_input", {"10"}}
     };
 }
 
-int main() {
+int main(int argc, char *argv[]) {
     cout << "\n[🔐] Encrypting all Ptxt weights from weights-sst2/ → encrypted_weights/\n";
 
-    // Step 1: Generate context
-    cout << "\n[1/4] Generating FHE context..." << endl;
-    // controller.parameters_folder("../keys")
-    controller.generate_context(true, false);
+    bool load_weights = false;
+    for (int i = 1; i < argc; i++) {
+        if (string(argv[i]) == "--load") {
+            load_weights = true;
+        }
+    }
 
-    // Step 2: Generate rotation keys
-    cout << "[2/4] Generating rotation keys..." << endl;
-    vector<int> rotations = {
-        1, 2, 3, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192,
-        -1, -2, -3, -4, -8, -16, -32, -64, -256, -512
-    };
-    controller.generate_bootstrapping_and_rotation_keys(rotations, 16384, true, "rotation_keys.txt");
+    if (load_weights) {
+        controller.load_context(true);
+        controller.load_bootstrapping_and_rotation_keys("rotation_keys.txt", 16384, true);
+    }
+    else {
+        // Step 1: Generate context
+        cout << "\n[1/4] Generating FHE context..." << endl;
+        // controller.parameters_folder("../keys")
+        controller.generate_context(true, false);
 
+        // Step 2: Generate rotation keys
+        cout << "[2/4] Generating rotation keys..." << endl;
+        vector<int> rotations = {
+            1, 2, 3, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192,
+            -1, -2, -3, -4, -8, -16, -32, -64, -256, -512
+        };
+        controller.generate_bootstrapping_and_rotation_keys(rotations, 16384, true, "rotation_keys.txt");
+    }
     // Step 3: Encrypt weights
     cout << "[3/4] Encrypting model weights from weights-sst2/..." << endl;
     system("mkdir -p encrypted_weights");

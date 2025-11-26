@@ -21,6 +21,9 @@ bool verbose = false;
 bool plain = false;
 
 
+int round_01(double x) {
+    return x >= 0.5;
+}
 
 // Processing results/res_0.txt.enc
 // Processing results/res_1.txt.enc
@@ -66,7 +69,7 @@ int main(int argc, char *argv[]) {
 
     double min = -200.0;
     double max = 200.0;
-    int degree = 200;
+    int degree = 25;
 
     // curr. batch = 1
     // SoonTM batch config
@@ -81,31 +84,39 @@ int main(int argc, char *argv[]) {
 
     for (int i = 0; i < n; i++) {
         if (verbose) cout << "Processing " << clf_encs_paths[i] << endl;
-        Ctxt classified = controller.load_ciphertext(clf_encs_paths[i]);
+        Ctxt classified = controller.load_ciphertext(clf_encs_paths[i]); // have 2 levels
+        // out from zero — better sgn func approx (check notebook sign_approx.ipynb)
+        // logit 0.001 -> 0.1, etc
+        classified = controller.mult(classified, 100); // +1
 
-        vector<Ctxt> logits = controller.split_2_slots(classified);
+        vector<Ctxt> logits = controller.split_2_slots(classified); // +2 levels
 
         vec_c_neg.push_back(logits[0]);
         vec_c_pos.push_back(logits[1]);
     }
 
+
     if (verbose) cout << "Unwrapping" << endl;
     Ctxt c_neg = controller.unwrap_vector_ctxts(vec_c_neg, n);
     Ctxt c_pos = controller.unwrap_vector_ctxts(vec_c_pos, n);
-    // out from zero — better sgn func approx (check notebook sign_approx.ipynb)
-    // logit 0.001 -> 0.1, etc.
-    c_neg = controller.mult(c_neg, 100);
-    c_pos = controller.mult(c_pos, 100);
+
+    // if (verbose) cout << "The evaluation of Pooler took: " << (duration_cast<milliseconds>(high_resolution_clock::now() - start)).count() / 1000.0 << " seconds." << endl;
+    if (verbose) controller.print(c_neg, 128, "Negative Logits Vector");
+    // c_neg = controller.mult(c_neg, 100);
+    // c_pos = controller.mult(c_pos, 100);
 
     if (verbose) cout << "Accuracy measure" << endl;
-    Ctxt acc_enc = controller.accuracy(c_neg, c_pos, labels, min, max, degree);
+    Ctxt acc_enc = controller.accuracy(c_neg, c_pos, labels, min, max, degree); // +6 with degree=25 and +2 with mult
 
+    if (verbose) controller.print(acc_enc, 128, "Accurasy Vector");
     double approx_acc = 0.0;
     if (verbose) {
         // TODO: чтобы заменить это безобразие на более красивое решение
         // нужно использовать rot_sum с операцией div на 0 слот
+        cout << "--- Verbose ---" << endl;
         vector<double> dec = controller.decrypt_tovector(acc_enc, n);
         for (size_t i = 0; i < n; i++) {
+            dec[i] = round_01(dec[i]);
             cout << dec[i] << " ";
             approx_acc += dec[i];  // суммируем только первые n слотов
         }
