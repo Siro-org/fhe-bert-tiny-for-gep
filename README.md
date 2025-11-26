@@ -96,6 +96,7 @@ Considering the fact that in every ciphertext the default initial value of every
 UPD: due to implementation of round_01() function in server and client side, 1 instead 0.5
 
 TBD: BYOM - Create your own Encrypted Model as Model Owner
+
 <!--
 ### 2.2 Create your own Encrypted Model (As Model owner)
 
@@ -110,5 +111,7 @@ keys/ folder
 ```
 
 #### 2.2.2 -->
+
+TBD: Server repository open-source
 
 TBD: Future Plans
