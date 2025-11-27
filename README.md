@@ -14,7 +14,7 @@ More details in [website](https://web3.siroproject.tech/).
 - GEP (Get-Eval-Publish) approach offers full privacy-preserving with advanced intercommunication between the Benchmark Owner and the Model Owner
 - It make available open-source contribution Privacy Model for Skill Transfer Validation (which earlier sounded like an oxymoron)
 
-## 0. Prerequisites
+## 0.0 Prerequisites
 
 Currently Linux only, not tested in Docker yet
 
