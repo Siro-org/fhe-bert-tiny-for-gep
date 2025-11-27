@@ -54,21 +54,29 @@ If you want to publish model validation results to siroproject.tech for checking
 
 #### 2.1.1 Load model Encrypted data
 
-First, load model's encrypted data and information from our Hugging Face repository:
-
+Load model's encrypted data and keys from our Hugging Face repository:
 [xLagerFeuer/fhe-bert-tiny-sst2](https://huggingface.co/xLagerFeuer/fhe-bert-tiny-sst2)
 
-And put data (keys, weights) in workdir
+```bash
+hf download xLagerFeuer/fhe-bert-tiny-sst2 --local-dir .
+```
 
 #### 2.1.2 Run inference_batch.py
 
-You can use inference_batch.py with default validation dataset (GLUE, SST2), batch size and verbose mode (ON by default)
+Use inference_batch.py with default validation dataset (GLUE, SST2), batch size and verbose mode (ON by default)
+Or with your custom settings
 
-Also you can change .py script with your own private dataset
-
-More about the model [here in hugging face, /philschmid/tiny-bert-sst2-distilled](https://huggingface.co/philschmid/tiny-bert-sst2-distilled):
+```bash
+uv run inference_batch.py
+```
 
 #### 2.1.3 Run send_batch.py
+
+```bash
+uv run send_batch.py
+```
+
+##### before run details
 Before running the script: set `BATCH_SIZE`, because final `benchmark_result.enc` as a ciphertext of Accuracy has the format:
 
 \[match_0_sample, match_1_sample, ..., match_i_sample, ..., match_n_sample, 0.5, 0,5, ..., 0.5\]
@@ -95,7 +103,11 @@ Considering the fact that in every ciphertext the default initial value of every
 
 UPD: due to implementation of round_01() function in server and client side, 1 instead 0.5
 
-TBD: BYOM - Create your own Encrypted Model as Model Owner
+## TBD:
+
+[ ] BYOM - Create your own Encrypted Model as Model Owner
+[ ] Server repository open-source
+[ ] Future Plans
 
 <!--
 ### 2.2 Create your own Encrypted Model (As Model owner)
@@ -112,6 +124,3 @@ keys/ folder
 
 #### 2.2.2 -->
 
-TBD: Server repository open-source
-
-TBD: Future Plans
