@@ -105,9 +105,9 @@ UPD: due to implementation of round_01() function in server and client side, 1 i
 
 ## TBD:
 
-[ ] BYOM - Create your own Encrypted Model as Model Owner
-[ ] Server repository open-source
-[ ] Future Plans
+- [ ] BYOM - Create your own Encrypted Model as Model Owner
+- [ ] Server repository open-source
+- [ ] Future Plans
 
 <!--
 ### 2.2 Create your own Encrypted Model (As Model owner)
